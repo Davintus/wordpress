@@ -1,4 +1,4 @@
-# Docs for the Azure Web Apps Deploy actions: https://github.com/Azure/webapps-deploy
+# Docs for the Azure Web Apps Deploys actions: https://github.com/Azure/webapps-deploy
 # More GitHub Actions for Azure: https://github.com/Azure/actions
 
 name: Build and deploy PHP app to Azure Web App - gfatest

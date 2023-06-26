@@ -1,7 +1,7 @@
 # Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
 # More GitHub Actions for Azure: https://github.com/Azure/actions
 
-name: Build and deploy container app to Azure Web App - new-wp-test
+name: Build and deploy PHP app to Azure Web App - getfundedafrica
 
 on:
   push:
@@ -11,41 +11,71 @@ on:
 
 jobs:
   build:
-    runs-on: 'ubuntu-latest'
+    runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
+      - uses: actions/checkout@v2
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v2
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
 
-    - name: Log in to registry
-      uses: docker/login-action@v2
-      with:
-        registry: https://mcr.microsoft.com/
-        username: ${{ secrets.AzureAppService_ContainerUsername_95769d984c1d42229cbd870a56a58156 }}
-        password: ${{ secrets.AzureAppService_ContainerPassword_6618305ee63445dea7d9454707f96f82 }}
+      - name: Check if composer.json exists
+        id: check_files
+        uses: andstor/file-existence-action@v1
+        with:
+          files: 'composer.json'
 
-    - name: Build and push container image to registry
-      uses: docker/build-push-action@v3
-      with:
-        push: true
-        tags: mcr.microsoft.com/${{ secrets.AzureAppService_ContainerUsername_95769d984c1d42229cbd870a56a58156 }}/appsvc/wordpress-alpine-php:${{ github.sha }}
-        file: ./Dockerfile
+      - name: Run composer install if composer.json exists
+        if: steps.check_files.outputs.files_exists == 'true'
+        run: composer validate --no-check-publish && composer install --prefer-dist --no-progress
+
+      - name: Upload artifact for deployment job
+        uses: actions/upload-artifact@v2
+        with:
+          name: php-app
+          path: .
 
   deploy:
     runs-on: ubuntu-latest
     needs: build
     environment:
-      name: 'production'
+      name: 'Production'
       url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
 
     steps:
-    - name: Deploy to Azure Web App
-      id: deploy-to-webapp
-      uses: azure/webapps-deploy@v2
-      with:
-        app-name: 'new-wp-test'
-        slot-name: 'production'
-        publish-profile: ${{ secrets.AzureAppService_PublishProfile_3e49c3e775914e138b2cd22975e72167 }}
-        images: 'mcr.microsoft.com/${{ secrets.AzureAppService_ContainerUsername_95769d984c1d42229cbd870a56a58156 }}/appsvc/wordpress-alpine-php:${{ github.sha }}'
+      - name: Download artifact from build job
+        uses: actions/download-artifact@v2
+        with:
+          name: php-app
+
+      - name: 'Deploy to Azure Web App'
+        uses: azure/webapps-deploy@v2
+        id: deploy-to-webapp
+        with:
+          app-name: 'getfundedafrica'
+          slot-name: 'Production'
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_4886F6EA31B34DA285997008EFA21FA7 }}
+          package: .
+
+      - name: Cleanup old artifacts
+        uses: actions/github-script@v4
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const artifacts = await github.actions.listArtifactsForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo
+            });
+            const sortedArtifacts = artifacts.data.artifacts
+              .filter(artifact => artifact.name !== 'php-app')
+              .sort((a, b) => b.created_at.localeCompare(a.created_at));
+            const artifactsToDelete = sortedArtifacts.slice(3);
+            for (const artifact of artifactsToDelete) {
+              await github.actions.deleteArtifact({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                artifact_id: artifact.id
+              });
+            }

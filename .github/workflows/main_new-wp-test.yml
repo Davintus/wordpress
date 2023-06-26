@@ -58,24 +58,3 @@ jobs:
           slot-name: 'Production'
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_4886F6EA31B34DA285997008EFA21FA7 }}
           package: .
-
-      - name: Cleanup old artifacts
-        uses: actions/github-script@v4
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const artifacts = await github.actions.listArtifactsForRepo({
-              owner: context.repo.owner,
-              repo: context.repo.repo
-            });
-            const sortedArtifacts = artifacts.data.artifacts
-              .filter(artifact => artifact.name !== 'php-app')
-              .sort((a, b) => b.created_at.localeCompare(a.created_at));
-            const artifactsToDelete = sortedArtifacts.slice(3);
-            for (const artifact of artifactsToDelete) {
-              await github.actions.deleteArtifact({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                artifact_id: artifact.id
-              });
-            }
